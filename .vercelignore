@@ -1,0 +1,17 @@
+# Ignore files outside the rabbithole directory
+/*.png
+/*.riv
+/*.md
+!README.md
+
+# Ignore screenshots
+Screenshot*
+
+# Ignore node_modules (will be installed during build)
+rabbithole/node_modules
+rabbithole/.env.local
+rabbithole/dist
+rabbithole/dev-dist
+
+# Ignore Convex generated files (will be regenerated)
+rabbithole/convex/_generated
