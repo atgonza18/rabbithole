@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark background -->
+  <rect width="512" height="512" fill="#1a1a1a"/>
+
+  <!-- Green circle background -->
+  <circle cx="256" cy="256" r="200" fill="#00ff88"/>
+
+  <!-- Dark inner circle creating a "hole" effect -->
+  <circle cx="256" cy="256" r="160" fill="#0a0e1a"/>
+
+  <!-- Green accent ring -->
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#00ff88" stroke-width="4"/>
+
+  <!-- Rabbit silhouette / ears -->
+  <g transform="translate(256, 200)">
+    <!-- Left ear -->
+    <ellipse cx="-30" cy="0" rx="15" ry="50" fill="#00ff88"/>
+    <!-- Right ear -->
+    <ellipse cx="30" cy="0" rx="15" ry="50" fill="#00ff88"/>
+    <!-- Head -->
+    <circle cx="0" cy="70" r="40" fill="#00ff88"/>
+  </g>
+
+  <!-- Text "RH" in center -->
+  <text x="256" y="320" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="#00ff88" text-anchor="middle">RH</text>
+</svg>
