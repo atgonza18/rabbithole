@@ -45,30 +45,28 @@ export function SectionCelebrationVideo({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black"
+          className="fixed inset-0 z-50 bg-black"
           style={{
-            paddingTop: 'env(safe-area-inset-top)',
-            paddingBottom: 'env(safe-area-inset-bottom)'
+            width: '100vw',
+            height: '100vh',
+            overflow: 'hidden'
           }}
         >
-          <motion.div
-            initial={{ scale: 0.9 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-            className="w-full h-full flex items-center justify-center"
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full"
+            style={{
+              objectFit: 'cover',
+              width: '100%',
+              height: '100%'
+            }}
+            onEnded={handleVideoEnd}
+            playsInline
+            muted={false}
+            preload="auto"
           >
-            <video
-              ref={videoRef}
-              className="w-full h-full object-contain"
-              onEnded={handleVideoEnd}
-              playsInline
-              muted={false}
-              preload="auto"
-            >
-              <source src="/section-celebration.mp4" type="video/mp4" />
-            </video>
-          </motion.div>
+            <source src="/section-celebration.mp4" type="video/mp4" />
+          </video>
         </motion.div>
       )}
     </AnimatePresence>
