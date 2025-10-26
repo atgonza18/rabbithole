@@ -31,6 +31,9 @@ npm run dev:backend
 # Build for production
 npm run build
 
+# Build with TypeScript checking first (recommended for production)
+npm run build:check
+
 # Type check and lint
 npm run lint
 
@@ -128,6 +131,46 @@ See `convex/schema.ts` for the complete schema. Key tables:
 - `convex/seedBerenstain.ts` - Berenstain Bears theory seed data with sections and pages
 - `convex/reset.ts` - Database reset utility (clears all data from all tables)
 
+### Creating New Conspiracy Theories
+
+**IMPORTANT:** Before creating new theories, read `/CONSPIRACY_THEORY_CREATION_GUIDE.md` at the repository root.
+
+#### Theory Lock/Unlock System Convention
+
+**CRITICAL: Follow this pattern for ALL new theories:**
+
+1. **First theory (order: 0)** - MUST have `isLocked: false` (starter theory available to all)
+2. **All other theories (order: 1+)** - MUST have `isLocked: true` (unlocked progressively)
+
+**How to Add a New Theory:**
+
+1. **Copy the template:** `cp convex/seedTemplate.ts.template convex/seedYourTheory.ts`
+2. **Determine order number:** Check existing theories and use the next available order number
+3. **Set lock status:**
+   - If `order: 0` → `isLocked: false` (only one theory should ever have order 0)
+   - If `order: 1+` → `isLocked: true`
+4. **Create content** following the guide in `CONSPIRACY_THEORY_CREATION_GUIDE.md`
+5. **Verify with debug query:** Run `npx convex run debug:checkTheoryLocks` to confirm lock status
+
+**Theory Unlock Flow:**
+- User completes any theory → earns 1 key
+- System automatically unlocks a random locked theory
+- User sees celebration modal
+- Newly unlocked theory appears on home page path
+
+#### Question Design Principles
+
+Key principles for questions:
+- Questions should be **immersive and thought-provoking**, not factual quizzes
+- Put users IN the scenario ("You're looking at a map. Does it feel wrong?")
+- Create cognitive dissonance and question their reality
+- All answer options should be equally unsettling
+- **NO `correctAnswer` field** - all answers are equally valid
+- Focus on emotional impact over educational content
+- Make users question their own memories and perceptions
+
+Questions should give chills and provoke thought, not test knowledge.
+
 ## Frontend Architecture
 
 ### Project Structure
@@ -137,8 +180,9 @@ src/
 ├── components/
 │   ├── ui/          # Shadcn components (button, dialog, tabs, card, input, etc.)
 │   │   └── tab-bar.tsx  # iOS-style bottom tab navigation
-│   ├── QuestionCard.tsx  # Question display component
-│   └── LoadingScreen.tsx # Loading screen component
+│   ├── QuestionCard.tsx   # Question display component
+│   ├── LoadingScreen.tsx  # Loading screen component
+│   └── UnlockModal.tsx    # Celebration modal when theories are completed
 ├── pages/
 │   ├── user/        # User-facing pages
 │   │   ├── HomePage.tsx       # Section path (vertical Duolingo-style with Rive rabbit)
@@ -211,6 +255,46 @@ The HomePage features a Duolingo-inspired vertical path with these key design el
 - **Convex Reactive Queries** - Real-time database sync via `useQuery()` and `useMutation()` hooks
 - **No Redux/Zustand** - Convex handles state synchronization
 - **React Router** - Client-side routing with `useNavigate()`, `useParams()`
+
+### Sound Effects System
+
+The app uses the Web Audio API for synthesized sound effects via the `useSoundEffects` hook (`src/hooks/useSoundEffects.ts`):
+
+**Available Sound Effects:**
+- `playCorrect()` - Happy ascending tones (C-E-G) when answer is correct
+- `playWrong()` - Descending sad tones when answer is wrong
+- `playCelebration()` - Victory fanfare for completing theories
+- `playClick()` - Futuristic two-tone click for buttons
+- `playPageTurn()` - Subtle tone for page navigation
+- `playSelect()` - Sound when selecting items
+
+**Implementation:**
+```typescript
+import { useSoundEffects } from "@/hooks/useSoundEffects";
+
+function MyComponent() {
+  const { playCorrect, playWrong } = useSoundEffects();
+
+  const handleAnswer = (isCorrect: boolean) => {
+    if (isCorrect) {
+      playCorrect();
+    } else {
+      playWrong();
+    }
+  };
+}
+```
+
+All sounds are generated programmatically using oscillators - no audio files required. The hook uses Web Audio API with lazy initialization for better performance.
+
+### Key Components
+
+**UnlockModal** (`src/components/UnlockModal.tsx`):
+- Celebration modal displayed when users complete a theory and earn a key
+- Features animated sparkles, glowing key icon with rotating gradient, and spring animations
+- Shows the newly unlocked theory title and icon
+- Used in conjunction with `playCelebration()` sound effect
+- Props: `isVisible`, `onUnlock`, `theoryTitle`, `theoryIcon`
 
 ## Environment Setup
 
@@ -431,8 +515,10 @@ Components are added to `src/components/ui/` with proper TypeScript types.
 - Basic admin dashboard
 - Theory management UI (create/edit/delete)
 - Berenstain Bears theory seed data
-- PWA configuration
+- PWA configuration with iOS optimization
 - Dark theme UI with conspiracy aesthetic
+- Sound effects system (Web Audio API)
+- Key unlock celebration modal
 
 **In Progress:**
 - Page builder UI for admins
@@ -441,11 +527,48 @@ Components are added to `src/components/ui/` with proper TypeScript types.
 - Clerk authentication integration
 
 **TODO:**
-- Key unlock celebration modal
 - Push notifications
 - Analytics dashboard
 - Achievement badges
 - Social features
+
+## Deployment
+
+### Vercel Deployment
+
+The project is configured for Vercel with special handling for the nested directory structure:
+
+**Configuration:**
+- `vercel.json` at repository root handles the nested `rabbithole/` directory
+- Build command: `cd rabbithole && npm install && npm run build`
+- Output directory: `rabbithole/dist`
+- SPA rewrites configured for React Router
+- Service worker headers properly configured
+
+**Environment Variables (Vercel):**
+Set these in Vercel project settings:
+- `VITE_CONVEX_URL` - Your production Convex deployment URL (e.g., `https://upbeat-gull-282.convex.cloud`)
+- Optionally: `VITE_CLERK_PUBLISHABLE_KEY` if using Clerk authentication
+
+**Convex Production Deployment:**
+```bash
+# From rabbithole/ directory
+npx convex deploy --prod
+
+# Note the production URL and add it to Vercel environment variables
+```
+
+**Deployment Steps:**
+1. Deploy Convex backend to production: `cd rabbithole && npx convex deploy --prod`
+2. Copy the production Convex URL
+3. Add `VITE_CONVEX_URL` to Vercel project settings with the production URL
+4. Push to GitHub - Vercel will auto-deploy
+5. Verify PWA works correctly on production (test on iOS device)
+
+**Important Notes:**
+- The `convex/_generated` files must be included in the Vercel build (not ignored)
+- Service worker must be served with correct headers (configured in vercel.json)
+- Manifest file must have `Content-Type: application/manifest+json` header
 
 ## Important Notes
 
@@ -456,4 +579,4 @@ Components are added to `src/components/ui/` with proper TypeScript types.
 - System fields (`_id`, `_creationTime`) are automatically added to all documents
 - Index names should include all fields (e.g., `by_user_and_theory`)
 - Use strict types for IDs: `Id<"tableName">` not `string`
-- to mem
+- Questions in conspiracy theories should have NO `correctAnswer` field - all options are equally valid (see CONSPIRACY_THEORY_CREATION_GUIDE.md)

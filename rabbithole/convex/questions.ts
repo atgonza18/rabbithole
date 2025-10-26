@@ -29,7 +29,7 @@ export const getQuestionByPageId = query({
       questionType: questionTypeValidator,
       questionText: v.string(),
       options: v.optional(v.array(optionValidator)),
-      correctAnswer: v.string(),
+      correctAnswer: v.optional(v.string()),
       explanation: v.optional(v.string()),
     }),
     v.null()
@@ -146,13 +146,22 @@ export const validateAnswer = query({
   },
   returns: v.object({
     isCorrect: v.boolean(),
-    correctAnswer: v.string(),
+    correctAnswer: v.optional(v.string()),
     explanation: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     const question = await ctx.db.get(args.questionId);
     if (!question) {
       throw new Error("Question not found");
+    }
+
+    // If there's no correct answer (thought-provoking question), all answers are valid
+    if (!question.correctAnswer) {
+      return {
+        isCorrect: true, // All answers are equally valid
+        correctAnswer: undefined,
+        explanation: question.explanation,
+      };
     }
 
     // Normalize answers for comparison (trim and lowercase for fill-in-blank)

@@ -49,8 +49,13 @@ export function useSoundEffects() {
   }, [initAudioContext, playTone]);
 
   const playClick = useCallback(() => {
-    playTone(600, 0.05, 'square');
-  }, [playTone]);
+    const ctx = initAudioContext();
+    // Cool futuristic click with two tones
+    playTone(800, 0.04, 'sine');
+    setTimeout(() => {
+      playTone(1200, 0.03, 'sine');
+    }, 30);
+  }, [initAudioContext, playTone]);
 
   const playCelebration = useCallback(() => {
     const ctx = initAudioContext();

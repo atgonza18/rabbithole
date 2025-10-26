@@ -41,10 +41,15 @@ export const seedBerenstainBears = mutation({
 
     await ctx.db.insert("questions", {
       pageId: s1p1,
-      questionType: "true_false",
-      questionText: "The children's book series has always been spelled 'Berenstain' with an 'A'.",
-      correctAnswer: "true",
-      explanation: "Despite what millions remember, every historical record shows it has always been 'Berenstain'. Not a single piece of evidence exists showing 'Berenstein'.",
+      questionType: "multiple_choice",
+      questionText: "Close your eyes. Picture yourself as a child, holding one of those bear books. You can see the cover, feel the pages. What does the spine say?",
+      options: [
+        { id: "a", text: "Berenstein - I can SEE those letters, clear as day" },
+        { id: "b", text: "Berenstain - that's what it's always been" },
+        { id: "c", text: "I... I don't know anymore. Both feel right and wrong" },
+        { id: "d", text: "I never read them, but I still somehow 'know' it was Berenstein" },
+      ],
+      explanation: "Whatever you remember is your truth. Millions share these exact memories - vivid, specific, detailed. The question isn't whether you're right or wrong. The question is: why do so many people remember the SAME 'wrong' thing?",
     });
 
     // Section 1 - Page 2
@@ -59,15 +64,14 @@ export const seedBerenstainBears = mutation({
     await ctx.db.insert("questions", {
       pageId: s1p2,
       questionType: "multiple_choice",
-      questionText: "Approximately what percentage of people misremember the spelling as 'Berenstein'?",
+      questionText: "Millions of people share the EXACT SAME 'false' memory. Not similar - identical. Which explanation disturbs you most?",
       options: [
-        { id: "a", text: "10-20%" },
-        { id: "b", text: "30-40%" },
-        { id: "c", text: "60-80%" },
-        { id: "d", text: "90-95%" },
+        { id: "a", text: "We're all just bad at remembering - pure coincidence" },
+        { id: "b", text: "Our memories were systematically altered" },
+        { id: "c", text: "We're refugees from a parallel timeline" },
+        { id: "d", text: "This reality is wrong, and some part of us knows it" },
       ],
-      correctAnswer: "c",
-      explanation: "Studies show that a staggering 60-80% of people remember the 'wrong' spelling, making this one of the most widespread false memories in history.",
+      explanation: "All of these explanations are equally terrifying. Coincidence fails to explain identical, vivid memories across millions. Memory alteration suggests we're not in control. Parallel timelines mean reality shifted. And if this reality feels 'wrong'... what does that make you? Someone who remembers the truth, or someone who can't let go of a lie?",
     });
 
     // Section 1 - Page 3
@@ -100,15 +104,14 @@ export const seedBerenstainBears = mutation({
     await ctx.db.insert("questions", {
       pageId: s2p1,
       questionType: "multiple_choice",
-      questionText: "Which of these is an example of the Mandela Effect?",
+      questionText: "Think about the Monopoly Man. Right now. Picture him in your mind. Is he wearing a monocle?",
       options: [
-        { id: "a", text: "The Monopoly Man wearing a monocle (he never did)" },
-        { id: "b", text: "Pikachu having a black-tipped tail (only the ears are black)" },
-        { id: "c", text: "Fruit of the Loom logo having a cornucopia (it never did)" },
-        { id: "d", text: "All of the above" },
+        { id: "a", text: "Yes - I can clearly picture it over his eye" },
+        { id: "b", text: "No monocle - never was" },
+        { id: "c", text: "I... thought he did? Now I'm not sure" },
+        { id: "d", text: "I've never looked at him the same since finding out he doesn't" },
       ],
-      correctAnswer: "d",
-      explanation: "All of these are examples of the Mandela Effect—widespread false memories that feel absolutely real to those who have them.",
+      explanation: "He doesn't have a monocle. Never has, according to every record. But if you pictured one - you're not alone. Millions see it too. Crystal clear. That monocle that never existed. So ask yourself: what else are you seeing that 'isn't there'? And what's missing that should be?",
     });
 
     // Section 2 - Page 2
@@ -122,10 +125,15 @@ export const seedBerenstainBears = mutation({
 
     await ctx.db.insert("questions", {
       pageId: s2p2,
-      questionType: "fill_in_blank",
-      questionText: "Many people claim that New Zealand has moved from the ________ of Australia to the southeast.",
-      correctAnswer: "northeast",
-      explanation: "Thousands of people distinctly remember New Zealand being northeast of Australia, when maps show it has 'always' been southeast.",
+      questionType: "multiple_choice",
+      questionText: "Pull up a world map right now. Look at it. Really look. Does something feel... wrong? Off? Like the continents aren't quite where they should be?",
+      options: [
+        { id: "a", text: "Yes - it's been bothering me for years" },
+        { id: "b", text: "Yes - and I just noticed it now, looking at the map" },
+        { id: "c", text: "No, but now you've made me paranoid" },
+        { id: "d", text: "I refuse to look. I don't want to know" },
+      ],
+      explanation: "Geography teachers, pilots, sailors - professionals who've studied maps their entire lives - report the same unsettling feeling. South America feels too far east. Australia seems wrong. New Zealand moved. Some refuse to look at maps anymore. Once you see it, you can't unsee it. The question is: has the world changed, or have you?",
     });
 
     // Section 2 - Page 3
@@ -166,10 +174,15 @@ export const seedBerenstainBears = mutation({
 
     await ctx.db.insert("questions", {
       pageId: s3p1,
-      questionType: "true_false",
-      questionText: "The Large Hadron Collider at CERN was activated in 2008, shortly before Mandela Effect reports began increasing online.",
-      correctAnswer: "true",
-      explanation: "CERN activated the LHC in September 2008, and within a year, reports of Mandela Effects began increasing dramatically across the internet.",
+      questionType: "multiple_choice",
+      questionText: "September 10, 2008. CERN smashes particles together at near-light speed for the first time. Within months, millions start noticing reality glitches. Coincidence?",
+      options: [
+        { id: "a", text: "Definitely a coincidence - CERN can't affect reality" },
+        { id: "b", text: "They knew exactly what they were doing" },
+        { id: "c", text: "They opened something they can't close" },
+        { id: "d", text: "We died in 2008 and this is the afterlife" },
+      ],
+      explanation: "CERN physicists deal with quantum mechanics - where observation literally changes reality. At high enough energies, the boundaries between possible and impossible blur. Whether coincidence or causation, the timing is unsettling. 2008: LHC activates. 2009: Reality starts glitching. Some say we're living in the aftermath of an experiment that went too far.",
     });
 
     // Section 3 - Page 2
@@ -183,10 +196,15 @@ export const seedBerenstainBears = mutation({
 
     await ctx.db.insert("questions", {
       pageId: s3p2,
-      questionType: "fill_in_blank",
-      questionText: "In quantum mechanics, particles exist in ________ until they are observed.",
-      correctAnswer: "superposition",
-      explanation: "Superposition is the quantum state where particles exist in multiple states simultaneously until measured or observed.",
+      questionType: "multiple_choice",
+      questionText: "You're standing in front of a quantum particle. Until you observe it, it exists in ALL possible states at once. You look at it. Reality collapses to one outcome. Now: what if YOU are the particle, and something just observed you?",
+      options: [
+        { id: "a", text: "Then my reality just collapsed into one timeline" },
+        { id: "b", text: "Then I'm not in control of my own existence" },
+        { id: "c", text: "Then whoever is observing me determines what's real" },
+        { id: "d", text: "I need to stop reading this right now" },
+      ],
+      explanation: "In quantum mechanics, the observer affects the observed. All of these implications are equally unsettling. If you're being observed, your reality is being collapsed, controlled, determined by something else. Every time CERN runs an experiment, they observe quantum particles. What if they're observing US too? Collapsing our reality with each experiment. Changing what's real by looking.",
     });
 
     // Section 3 - Page 3

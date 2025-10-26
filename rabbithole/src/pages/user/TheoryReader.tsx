@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { QuestionCard } from "@/components/QuestionCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { SectionCelebrationVideo } from "@/components/SectionCelebrationVideo";
 
 export default function TheoryReader() {
   const { theoryId, sectionId } = useParams<{ theoryId: string; sectionId?: string }>();
@@ -15,7 +16,8 @@ export default function TheoryReader() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const { playPageTurn, playCelebration } = useSoundEffects();
+  const [showSectionVideo, setShowSectionVideo] = useState(false);
+  const { playPageTurn, playCelebration, playClick } = useSoundEffects();
 
   // Get mock user for development
   const mockUser = useQuery(api.users.getMockUser);
@@ -62,6 +64,26 @@ export default function TheoryReader() {
     theoryId && mockUser ? { userId: mockUser._id, theoryId: theoryId as Id<"theories"> } : "skip"
   );
 
+  // Get all pages in the entire theory to check if this is the last page of the whole theory
+  const allTheoryPages = useQuery(
+    theoryId ? api.pages.getPagesByTheoryId : "skip",
+    theoryId ? { theoryId: theoryId as Id<"theories"> } : "skip"
+  );
+
+  // Check if theory is unlocked for the user
+  const isUnlocked = useQuery(
+    theoryId && mockUser ? api.progress.isTheoryUnlocked : "skip",
+    theoryId && mockUser ? { userId: mockUser._id, theoryId: theoryId as Id<"theories"> } : "skip"
+  );
+
+  // Redirect if theory is locked
+  useEffect(() => {
+    if (theory && mockUser && isUnlocked === false && theory.isLocked) {
+      // Theory is locked and user hasn't unlocked it - redirect to home
+      navigate("/");
+    }
+  }, [theory, mockUser, isUnlocked, navigate]);
+
   // Start theory progress when component mounts
   useEffect(() => {
     if (theoryId && mockUser) {
@@ -71,7 +93,7 @@ export default function TheoryReader() {
 
   if (theory === undefined || pages === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -86,7 +108,7 @@ export default function TheoryReader() {
 
   if (!theory || !pages || pages.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a] p-4">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -95,7 +117,7 @@ export default function TheoryReader() {
           <Eye className="w-16 h-16 mx-auto mb-4 text-slate-600" />
           <h2 className="text-2xl font-bold mb-4">Theory Not Found</h2>
           <p className="text-slate-400 mb-6">This rabbit hole leads nowhere...</p>
-          <Button onClick={() => navigate("/")} className="w-full">Return Home</Button>
+          <Button onClick={() => { playClick(); navigate("/"); }} className="w-full">Return Home</Button>
         </motion.div>
       </div>
     );
@@ -104,7 +126,27 @@ export default function TheoryReader() {
   const isLastPage = currentPageIndex === pages.length - 1;
   const progressPercentage = ((currentPageIndex + 1) / pages.length) * 100;
 
+  // Check if this is the last page of the entire theory
+  const isLastPageOfTheory = currentPage && allTheoryPages
+    ? allTheoryPages[allTheoryPages.length - 1]?._id === currentPage._id
+    : false;
+
   const handleCorrectAnswer = async () => {
+    // Check if this will complete a section BEFORE marking as complete
+    let willCompleteSection = false;
+
+    if (currentPage && currentPage.sectionId && pages && userProgress) {
+      // Get all pages in current section
+      const sectionPages = pages.filter(p => p.sectionId === currentPage.sectionId);
+
+      // Check if all pages in section will be completed after this one
+      const completedInSection = sectionPages.filter(p =>
+        userProgress.completedPageIds.includes(p._id) || p._id === currentPage._id
+      );
+
+      willCompleteSection = completedInSection.length === sectionPages.length;
+    }
+
     // Mark current page as completed
     if (currentPage && theoryId && mockUser) {
       await completePage({
@@ -115,20 +157,46 @@ export default function TheoryReader() {
     }
 
     if (isLastPage) {
-      // Section complete - navigate home
-      // Only show celebration if entire theory is complete (checked in completePage mutation)
-      if (userProgress?.isCompleted) {
+      // Check if this is the last page of the entire theory
+      if (isLastPageOfTheory) {
+        // Theory complete! Show celebration then navigate home
         playCelebration();
         setShowCelebration(true);
+
+        // Wait for the celebration, then navigate to home where unlock modal will show
         setTimeout(() => {
           navigate("/");
         }, 2500);
       } else {
-        // Section done but theory not complete - just navigate home
-        navigate("/");
+        // Section done but theory not complete
+        // Show section video celebration if section was just completed
+        if (willCompleteSection) {
+          setShowSectionVideo(true);
+        } else {
+          navigate("/");
+        }
       }
     } else {
-      // Move to next page
+      // Not last page - check if section was just completed
+      if (willCompleteSection) {
+        setShowSectionVideo(true);
+      } else {
+        // Move to next page
+        playPageTurn();
+        setCurrentPageIndex(currentPageIndex + 1);
+        setShowQuestion(false);
+      }
+    }
+  };
+
+  const handleSectionVideoComplete = () => {
+    setShowSectionVideo(false);
+
+    // If this was the last page of the section, navigate home
+    if (isLastPage) {
+      navigate("/");
+    } else {
+      // Otherwise, move to next page
       playPageTurn();
       setCurrentPageIndex(currentPageIndex + 1);
       setShowQuestion(false);
@@ -136,6 +204,7 @@ export default function TheoryReader() {
   };
 
   const handleContinue = () => {
+    playClick();
     playPageTurn();
     if (currentPage?.hasQuestion && !showQuestion) {
       setShowQuestion(true);
@@ -146,7 +215,7 @@ export default function TheoryReader() {
 
   return (
     <div
-      className="h-screen flex flex-col bg-[#1a1a1a] overflow-hidden relative"
+      className="h-screen flex flex-col bg-slate-950 overflow-hidden relative"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
@@ -160,7 +229,13 @@ export default function TheoryReader() {
         }} />
       </div>
 
-      {/* Completion Celebration Overlay */}
+      {/* Section Video Celebration */}
+      <SectionCelebrationVideo
+        isVisible={showSectionVideo}
+        onComplete={handleSectionVideoComplete}
+      />
+
+      {/* Theory Completion Celebration Overlay */}
       <AnimatePresence>
         {showCelebration && (
           <motion.div
@@ -188,7 +263,7 @@ export default function TheoryReader() {
               >
                 <Award className="w-32 h-32 mx-auto mb-6 text-yellow-400" />
               </motion.div>
-              <h2 className="text-4xl font-bold mb-4 text-white">Section Complete!</h2>
+              <h2 className="text-4xl font-bold mb-4 text-white">Theory Complete!</h2>
               <p className="text-xl text-slate-300">Truth revealed +100 XP</p>
               <div className="flex gap-2 justify-center mt-6">
                 {[...Array(3)].map((_, i) => (
@@ -206,12 +281,16 @@ export default function TheoryReader() {
         )}
       </AnimatePresence>
 
+
       {/* Enhanced Header */}
       <header className="flex-shrink-0 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/50 relative z-10">
         <div className="px-4 py-4">
           <div className="flex items-center justify-between mb-3">
             <motion.button
-              onClick={() => navigate("/")}
+              onClick={() => {
+                playClick();
+                navigate("/");
+              }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="p-2.5 hover:bg-slate-800 rounded-xl transition-colors group"
@@ -278,64 +357,60 @@ export default function TheoryReader() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 relative z-0 overflow-hidden flex items-center justify-center p-4">
+      <main className="flex-1 relative z-0 flex items-center justify-center px-4 pt-4 pb-8">
         <div className="w-full max-w-3xl h-full flex items-center justify-center">
             <AnimatePresence mode="wait">
               {!showQuestion ? (
-                // Enhanced Content Card
+                // Content Card
                 <motion.div
                   key={`content-${currentPageIndex}`}
-                  initial={{ opacity: 0, x: 100, rotateY: -15 }}
-                  animate={{ opacity: 1, x: 0, rotateY: 0 }}
-                  exit={{ opacity: 0, x: -100, rotateY: 15 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="relative"
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="w-full h-full flex items-center justify-center"
                 >
-                  {/* Glow effect */}
-                  <div className="absolute -inset-1 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-3xl blur-xl opacity-50" />
-
-                  <div className="relative bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-slate-700/50 shadow-2xl flex flex-col max-h-[calc(100vh-12rem)]">
-                    {/* Page number indicator */}
+                  <div className="w-full max-w-3xl bg-slate-900/95 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-2xl p-6 md:p-8 max-h-[80vh] overflow-y-auto">
+                    {/* Header Badge */}
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700 flex-shrink-0"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 rounded-lg bg-slate-800/70 border border-slate-700"
                     >
-                      <Eye className="w-4 h-4 text-green-400" />
-                      <span className="text-xs font-mono text-slate-400">
-                        EVIDENCE #{currentPageIndex + 1}
+                      <Eye className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                        Evidence #{currentPageIndex + 1}
                       </span>
                     </motion.div>
 
+                    {/* Content */}
                     <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1 }}
-                      className="prose prose-invert prose-slate max-w-none mb-6 prose-headings:text-green-400 prose-headings:font-bold prose-p:text-slate-300 prose-p:leading-relaxed prose-strong:text-white prose-a:text-green-400 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.15 }}
+                      className="prose prose-invert prose-slate max-w-none mb-6
+                        prose-headings:text-green-400 prose-headings:font-bold
+                        prose-h2:text-xl md:prose-h2:text-2xl
+                        prose-p:text-slate-300 prose-p:leading-relaxed prose-p:text-sm md:prose-p:text-base
+                        prose-strong:text-white
+                        prose-a:text-green-400 prose-a:no-underline hover:prose-a:underline
+                        prose-li:text-slate-300 prose-li:marker:text-green-400
+                        prose-blockquote:border-l-green-400 prose-blockquote:text-slate-400"
                       dangerouslySetInnerHTML={{ __html: currentPage?.content || "" }}
                     />
 
+                    {/* Button */}
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="flex-shrink-0"
                     >
                       <Button
                         onClick={handleContinue}
-                        className="w-full py-6 text-lg font-bold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 transition-all duration-300 shadow-lg shadow-green-500/30 group relative overflow-hidden"
+                        className="w-full py-5 text-base font-semibold bg-green-600 hover:bg-green-500 transition-all duration-200 shadow-lg shadow-green-900/50 group"
                         size="lg"
                       >
-                        <motion.div
-                          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                          animate={{ x: ['-200%', '200%'] }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "linear"
-                          }}
-                        />
-                        <span className="relative flex items-center justify-center gap-2">
+                        <span className="flex items-center justify-center gap-2">
                           {currentPage?.hasQuestion
                             ? "Answer Question"
                             : isLastPage
@@ -348,44 +423,40 @@ export default function TheoryReader() {
                   </div>
                 </motion.div>
               ) : (
-                // Enhanced Question Card
+                // Question Card
                 <motion.div
                   key={`question-${currentPageIndex}`}
-                  initial={{ opacity: 0, scale: 0.9, rotateX: -15 }}
-                  animate={{ opacity: 1, scale: 1, rotateX: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, rotateX: 15 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="relative"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="w-full h-full flex items-center justify-center"
                 >
-                  {/* Glow effect */}
-                  <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-3xl blur-xl opacity-50" />
-
-                  <div className="relative bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-slate-700/50 shadow-2xl flex flex-col max-h-[calc(100vh-12rem)]">
-                    {/* Question indicator */}
+                  <div className="w-full max-w-3xl bg-slate-900/95 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-2xl p-6 md:p-8 max-h-[80vh] overflow-y-auto">
+                    {/* Header Badge */}
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 flex-shrink-0"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 rounded-lg bg-purple-500/10 border border-purple-500/30"
                     >
-                      <Award className="w-4 h-4 text-purple-400" />
-                      <span className="text-xs font-mono text-purple-400">
-                        TRUTH CHECK
+                      <Award className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="text-xs font-mono text-purple-400 uppercase tracking-wider">
+                        Truth Check
                       </span>
                     </motion.div>
 
-                    <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                      {question ? (
-                        <QuestionCard
-                          question={question}
-                          onCorrectAnswer={handleCorrectAnswer}
-                        />
-                      ) : (
-                        <div className="text-center text-slate-400 flex items-center justify-center gap-2 h-full">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                          Loading question...
-                        </div>
-                      )}
-                    </div>
+                    {/* Question Content */}
+                    {question ? (
+                      <QuestionCard
+                        question={question}
+                        onCorrectAnswer={handleCorrectAnswer}
+                      />
+                    ) : (
+                      <div className="text-center text-slate-400 flex items-center justify-center gap-2">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                        Loading question...
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}

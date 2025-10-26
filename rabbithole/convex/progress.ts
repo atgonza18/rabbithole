@@ -162,9 +162,13 @@ export const submitAnswer = mutation({
     }
 
     // Validate answer
-    const normalizedUserAnswer = args.userAnswer.trim().toLowerCase();
-    const normalizedCorrectAnswer = question.correctAnswer.trim().toLowerCase();
-    const isCorrect = normalizedUserAnswer === normalizedCorrectAnswer;
+    // If there's no correct answer (thought-provoking question), all answers are valid
+    let isCorrect = true;
+    if (question.correctAnswer) {
+      const normalizedUserAnswer = args.userAnswer.trim().toLowerCase();
+      const normalizedCorrectAnswer = question.correctAnswer.trim().toLowerCase();
+      isCorrect = normalizedUserAnswer === normalizedCorrectAnswer;
+    }
 
     // Add answer to progress
     const newAnswer = {
@@ -231,6 +235,36 @@ export const completePage = mutation({
         currentPageId: args.pageId,
       });
 
+      // Get the page to check its section
+      const completedPage = await ctx.db.get(args.pageId);
+
+      // Check if section was just completed (award 10 XP)
+      if (completedPage && completedPage.sectionId) {
+        const sectionPages = await ctx.db
+          .query("theoryPages")
+          .withIndex("by_section_id", (q) => q.eq("sectionId", completedPage.sectionId))
+          .collect();
+
+        // Check if section is now complete (with the new page added)
+        const sectionNowComplete = sectionPages.every((page) =>
+          updatedCompletedPages.includes(page._id)
+        );
+
+        // Check if section was already complete BEFORE this page
+        const sectionWasAlreadyComplete = sectionPages.every((page) =>
+          progress.completedPageIds.includes(page._id)
+        );
+
+        // Award XP ONLY if section just became complete (wasn't complete before, is complete now)
+        if (sectionNowComplete && !sectionWasAlreadyComplete) {
+          await ctx.runMutation(internal.users.awardXP, {
+            userId: args.userId,
+            amount: 10,
+          });
+          console.log(`Awarded 10 XP for completing section ${completedPage.sectionId}`);
+        }
+      }
+
       // Check if theory is complete
       const allPages = await ctx.db
         .query("theoryPages")
@@ -238,7 +272,7 @@ export const completePage = mutation({
         .collect();
 
       if (updatedCompletedPages.length >= allPages.length) {
-        // Theory completed! Award key
+        // Theory completed! Award key and bonus XP
         await ctx.db.patch(progress._id, {
           isCompleted: true,
           completedAt: Date.now(),
@@ -249,6 +283,46 @@ export const completePage = mutation({
         await ctx.runMutation(internal.users.awardKey, {
           userId: args.userId,
         });
+
+        // Award 20 XP bonus for completing theory
+        await ctx.runMutation(internal.users.awardXP, {
+          userId: args.userId,
+          amount: 20,
+        });
+        console.log(`Awarded 20 XP bonus for completing theory ${args.theoryId}`);
+
+        // Automatically unlock a random theory for the user (inline logic)
+        const allTheories = await ctx.db
+          .query("theories")
+          .withIndex("by_order")
+          .collect();
+
+        const userUnlocks = await ctx.db
+          .query("theoryUnlocks")
+          .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+          .collect();
+
+        const unlockedTheoryIds = new Set(userUnlocks.map((u) => u.theoryId));
+
+        const lockedTheories = allTheories.filter(
+          (theory) => theory.isLocked && !unlockedTheoryIds.has(theory._id)
+        );
+
+        if (lockedTheories.length > 0) {
+          // Pick a random locked theory
+          const randomIndex = Math.floor(Math.random() * lockedTheories.length);
+          const theoryToUnlock = lockedTheories[randomIndex];
+
+          // Create unlock record
+          await ctx.db.insert("theoryUnlocks", {
+            userId: args.userId,
+            theoryId: theoryToUnlock._id,
+            unlockedAt: Date.now(),
+            usedKey: false,
+          });
+
+          console.log(`Unlocked theory "${theoryToUnlock.title}" for user:`, args.userId);
+        }
       }
     }
 
@@ -327,6 +401,18 @@ export const isTheoryUnlocked = query({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    // Get the theory to check if it's locked
+    const theory = await ctx.db.get(args.theoryId);
+    if (!theory) {
+      return false;
+    }
+
+    // If theory is not locked, it's available to everyone
+    if (!theory.isLocked) {
+      return true;
+    }
+
+    // If theory is locked, check if user has unlocked it
     const unlock = await ctx.db
       .query("theoryUnlocks")
       .withIndex("by_user_and_theory", (q) =>
@@ -431,5 +517,105 @@ export const isSectionCompleted = query({
     return sectionPages.every((page) =>
       progress.completedPageIds.includes(page._id)
     );
+  },
+});
+
+/**
+ * Get all theories unlocked for a user (including non-locked ones)
+ */
+export const getUnlockedTheories = query({
+  args: {
+    userId: v.id("users"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("theories"),
+      _creationTime: v.number(),
+      title: v.string(),
+      description: v.string(),
+      order: v.number(),
+      isLocked: v.boolean(),
+      icon: v.optional(v.string()),
+      difficulty: v.union(
+        v.literal("beginner"),
+        v.literal("intermediate"),
+        v.literal("expert")
+      ),
+      estimatedTimeMinutes: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    // Get all theories
+    const allTheories = await ctx.db
+      .query("theories")
+      .withIndex("by_order")
+      .collect();
+
+    // Get user's unlocks
+    const userUnlocks = await ctx.db
+      .query("theoryUnlocks")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const unlockedTheoryIds = new Set(userUnlocks.map((u) => u.theoryId));
+
+    // Return theories that are either not locked OR have been unlocked by the user
+    return allTheories.filter(
+      (theory) => !theory.isLocked || unlockedTheoryIds.has(theory._id)
+    );
+  },
+});
+
+/**
+ * Get the most recently unlocked theory for a user (auto-unlocked only)
+ */
+export const getMostRecentlyUnlockedTheory = query({
+  args: {
+    userId: v.id("users"),
+  },
+  returns: v.union(
+    v.object({
+      theory: v.object({
+        _id: v.id("theories"),
+        _creationTime: v.number(),
+        title: v.string(),
+        description: v.string(),
+        order: v.number(),
+        isLocked: v.boolean(),
+        icon: v.optional(v.string()),
+        difficulty: v.union(
+          v.literal("beginner"),
+          v.literal("intermediate"),
+          v.literal("expert")
+        ),
+        estimatedTimeMinutes: v.number(),
+      }),
+      unlockedAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    // Get the most recent auto-unlock (usedKey: false)
+    const recentUnlock = await ctx.db
+      .query("theoryUnlocks")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("usedKey"), false))
+      .order("desc")
+      .first();
+
+    if (!recentUnlock) {
+      return null;
+    }
+
+    // Get the theory details
+    const theory = await ctx.db.get(recentUnlock.theoryId);
+    if (!theory) {
+      return null;
+    }
+
+    return {
+      theory,
+      unlockedAt: recentUnlock.unlockedAt,
+    };
   },
 });

@@ -8,6 +8,7 @@ export default defineSchema({
     username: v.string(),
     email: v.string(),
     keysEarned: v.number(), // Total keys earned by completing theories
+    xp: v.number(), // Experience points earned from completing sections and theories
     currentTheoryId: v.optional(v.id("theories")), // Theory user is currently working on
     isAdmin: v.boolean(), // Admin flag
   })
@@ -73,8 +74,8 @@ export default defineSchema({
         })
       )
     ),
-    correctAnswer: v.string(), // The correct answer (option id, "true"/"false", or text)
-    explanation: v.optional(v.string()), // Explanation shown after answering
+    correctAnswer: v.optional(v.string()), // DEPRECATED: No longer used - all answers are valid
+    explanation: v.optional(v.string()), // Reflection/insight shown after answering (not dependent on correctness)
   }).index("by_page_id", ["pageId"]),
 
   // User progress through theories

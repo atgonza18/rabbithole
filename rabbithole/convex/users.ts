@@ -35,6 +35,7 @@ export const syncUser = mutation({
       username: args.username,
       email: args.email,
       keysEarned: 0,
+      xp: 0,
       isAdmin: false, // Default to non-admin
     });
 
@@ -57,6 +58,7 @@ export const getCurrentUser = query({
       username: v.string(),
       email: v.string(),
       keysEarned: v.number(),
+      xp: v.number(),
       currentTheoryId: v.optional(v.id("theories")),
       isAdmin: v.boolean(),
     }),
@@ -150,6 +152,7 @@ export const getOrCreateMockUser = mutation({
       username: "Mock User",
       email: "mock@example.com",
       keysEarned: 0,
+      xp: 0,
       isAdmin: false,
     });
 
@@ -170,6 +173,7 @@ export const getMockUser = query({
       username: v.string(),
       email: v.string(),
       keysEarned: v.number(),
+      xp: v.number(),
       currentTheoryId: v.optional(v.id("theories")),
       isAdmin: v.boolean(),
     }),
@@ -182,5 +186,27 @@ export const getMockUser = query({
       .unique();
 
     return mockUser;
+  },
+});
+
+/**
+ * Award XP to a user (internal function)
+ */
+export const awardXP = internalMutation({
+  args: {
+    userId: v.id("users"),
+    amount: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(args.userId, {
+      xp: user.xp + args.amount,
+    });
+    return null;
   },
 });

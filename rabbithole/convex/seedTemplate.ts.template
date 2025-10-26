@@ -1,0 +1,126 @@
+import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
+
+/**
+ * SEED FILE TEMPLATE
+ *
+ * Copy this file to create a new conspiracy theory.
+ *
+ * IMPORTANT CONVENTIONS:
+ * - If this is the FIRST theory (order: 0): set isLocked: false
+ * - If this is ANY OTHER theory (order > 0): set isLocked: true
+ * - All questions should have NO correctAnswer field
+ * - Use styled HTML for all content (see CONSPIRACY_THEORY_CREATION_GUIDE.md)
+ *
+ * STEPS TO CREATE A NEW THEORY:
+ * 1. Copy this template: cp convex/seedTemplate.ts.template convex/seedYourTheory.ts
+ * 2. Replace all "YOUR_THEORY_NAME" placeholders
+ * 3. Set the correct order number (next available number in sequence)
+ * 4. Set isLocked based on order (0 = false, 1+ = true)
+ * 5. Create 4 sections with 3-4 pages each
+ * 6. Add 6-8 thought-provoking questions (no correctAnswer)
+ * 7. Add to seedAll file if you want to include it in batch seeding
+ */
+
+export const seedYourTheory = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    // Create the theory
+    const theoryId = await ctx.db.insert("theories", {
+      title: "YOUR_THEORY_TITLE",
+      description: "YOUR_THEORY_DESCRIPTION",
+      difficulty: "beginner" as const, // or "intermediate" or "expert"
+      order: 999, // ❗ CHANGE THIS: Use next available order number
+      icon: "🎯", // ❗ CHANGE THIS: Pick an appropriate emoji
+      isLocked: true, // ❗ CRITICAL: false for order 0, true for order > 0
+      estimatedTimeMinutes: 45,
+    });
+
+    // ==================== SECTION 1: The Hook ====================
+    const section1Id = await ctx.db.insert("theorySections", {
+      theoryId,
+      title: "Section 1 Title",
+      description: "Section 1 Description",
+      order: 1,
+    });
+
+    // Section 1 - Page 1
+    const s1p1 = await ctx.db.insert("theoryPages", {
+      theoryId,
+      sectionId: section1Id,
+      order: 1,
+      content: `<h2 class="text-2xl md:text-3xl font-black mb-6 text-green-400">Your Opening Hook</h2>
+
+<p class="mb-4 leading-relaxed">Start with something familiar and relatable...</p>
+
+<p class="mb-4 leading-relaxed">Build tension gradually...</p>
+
+<div class="bg-slate-800/50 border-l-4 border-yellow-500 p-4 my-6">
+  <p class="text-yellow-400 font-semibold mb-2">Key Point</p>
+  <p class="text-slate-300">Important information that stands out...</p>
+</div>`,
+      hasQuestion: true,
+    });
+
+    // Section 1 - Question 1 (Memory Verification)
+    await ctx.db.insert("questions", {
+      pageId: s1p1,
+      questionType: "multiple_choice",
+      questionText: "Your thought-provoking question here? (Make it personal and experiential)",
+      options: [
+        {
+          id: "a",
+          text: "First unsettling option"
+        },
+        {
+          id: "b",
+          text: "Second unsettling option"
+        },
+        {
+          id: "c",
+          text: "Third unsettling option"
+        },
+        {
+          id: "d",
+          text: "Fourth unsettling option"
+        },
+      ],
+      // NO correctAnswer field - all answers are equally valid
+      explanation: "Your explanation that validates their choice and adds intrigue. Don't say they're right or wrong - all answers reveal something unsettling."
+    });
+
+    // ==================== SECTION 2: The Evidence ====================
+    const section2Id = await ctx.db.insert("theorySections", {
+      theoryId,
+      title: "Section 2 Title",
+      description: "Section 2 Description",
+      order: 2,
+    });
+
+    // Add more pages and questions for section 2...
+
+    // ==================== SECTION 3: The Explanation ====================
+    const section3Id = await ctx.db.insert("theorySections", {
+      theoryId,
+      title: "Section 3 Title",
+      description: "Section 3 Description",
+      order: 3,
+    });
+
+    // Add more pages and questions for section 3...
+
+    // ==================== SECTION 4: The Implication ====================
+    const section4Id = await ctx.db.insert("theorySections", {
+      theoryId,
+      title: "Section 4 Title",
+      description: "Section 4 Description",
+      order: 4,
+    });
+
+    // Add more pages and questions for section 4...
+
+    console.log("YOUR_THEORY_NAME seeded successfully");
+    return null;
+  },
+});

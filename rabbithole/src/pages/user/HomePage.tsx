@@ -7,14 +7,19 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRive } from "@rive-app/react-canvas";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { UnlockModal } from "@/components/UnlockModal";
 import { useState, useEffect } from "react";
+import { Id } from "../../../convex/_generated/dataModel";
 
 export default function HomePage() {
   const navigate = useNavigate();
   const theories = useQuery(api.theories.getAllTheories);
   const seedBerenstain = useMutation(api.seedBerenstain.seedBerenstainBears);
+  const seedCelebrityCloning = useMutation(api.seedCelebrityCloning.seedCelebrityCloning);
   const getOrCreateMockUser = useMutation(api.users.getOrCreateMockUser);
   const [isLoading, setIsLoading] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [newlyUnlockedTheory, setNewlyUnlockedTheory] = useState<any>(null);
 
   // Get mock user for development
   const mockUser = useQuery(api.users.getMockUser);
@@ -26,25 +31,16 @@ export default function HomePage() {
     }
   }, [mockUser, getOrCreateMockUser]);
 
-  // Get the first theory (or user's current theory)
-  const currentTheory = theories?.[0];
-
-  // Get sections for the current theory
-  const sections = useQuery(
-    currentTheory ? api.sections.getSectionsByTheoryId : "skip",
-    currentTheory ? { theoryId: currentTheory._id } : "skip"
+  // Get unlocked theories for the user
+  const unlockedTheories = useQuery(
+    mockUser ? api.progress.getUnlockedTheories : "skip",
+    mockUser ? { userId: mockUser._id } : "skip"
   );
 
-  // Get completed sections for progress tracking
-  const completedSectionIds = useQuery(
-    currentTheory && mockUser ? api.progress.getCompletedSections : "skip",
-    currentTheory && mockUser ? { userId: mockUser._id, theoryId: currentTheory._id } : "skip"
-  );
-
-  // Get user progress for the theory
-  const userProgress = useQuery(
-    currentTheory && mockUser ? api.progress.getUserTheoryProgress : "skip",
-    currentTheory && mockUser ? { userId: mockUser._id, theoryId: currentTheory._id } : "skip"
+  // Get the most recently unlocked theory (for the modal)
+  const recentlyUnlocked = useQuery(
+    mockUser ? api.progress.getMostRecentlyUnlockedTheory : "skip",
+    mockUser ? { userId: mockUser._id } : "skip"
   );
 
   // Rive animation
@@ -66,9 +62,40 @@ export default function HomePage() {
     }
   }, [rive]);
 
+  // Check for newly unlocked theory and show modal
+  useEffect(() => {
+    if (recentlyUnlocked && !showUnlockModal) {
+      // Check if we've already shown this unlock
+      const lastShownUnlockId = localStorage.getItem('lastShownUnlockId');
+      const currentUnlockId = `${recentlyUnlocked.theory._id}-${recentlyUnlocked.unlockedAt}`;
+
+      // Check if the unlock is recent (within last 30 seconds) and we haven't shown it yet
+      const isRecent = Date.now() - recentlyUnlocked.unlockedAt < 30000;
+      const notShownYet = lastShownUnlockId !== currentUnlockId;
+
+      if (isRecent && notShownYet) {
+        setNewlyUnlockedTheory(recentlyUnlocked.theory);
+        setShowUnlockModal(true);
+        localStorage.setItem('lastShownUnlockId', currentUnlockId);
+      }
+    }
+  }, [recentlyUnlocked, showUnlockModal]);
+
+  const handleUnlockModalClose = () => {
+    setShowUnlockModal(false);
+    setNewlyUnlockedTheory(null);
+    // Scroll to the newly unlocked theory
+    setTimeout(() => {
+      const element = document.getElementById(`theory-${newlyUnlockedTheory?._id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
+  };
+
   if (theories === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#2d2d2d' }}>
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="text-slate-400">Loading theories...</div>
       </div>
     );
@@ -76,20 +103,30 @@ export default function HomePage() {
 
   if (theories.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 pb-20" style={{ backgroundColor: '#2d2d2d' }}>
+      <div className="min-h-screen flex items-center justify-center p-4 pb-20 bg-slate-950">
         <Card className="p-8 max-w-md text-center bg-slate-900/50 border-slate-800">
           <h2 className="text-2xl font-bold mb-4 text-white">No Theories Yet</h2>
           <p className="text-slate-400 mb-6">
-            Let's get started by creating the Berenstain Bears theory!
+            Let's get started by creating your first theory!
           </p>
-          <Button
-            onClick={async () => {
-              await seedBerenstain();
-            }}
-            className="mb-3"
-          >
-            Create Berenstain Bears Theory
-          </Button>
+          <div className="space-y-3 mb-6">
+            <Button
+              onClick={async () => {
+                await seedBerenstain();
+              }}
+              className="w-full"
+            >
+              🐻 Create Berenstain Bears Theory
+            </Button>
+            <Button
+              onClick={async () => {
+                await seedCelebrityCloning();
+              }}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              👥 Create Celebrity Cloning Theory
+            </Button>
+          </div>
           <Button variant="outline" onClick={() => navigate("/admin")}>
             Or Go to Admin Panel
           </Button>
@@ -98,13 +135,18 @@ export default function HomePage() {
     );
   }
 
-  if (sections === undefined) {
+  if (!mockUser || !unlockedTheories) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#2d2d2d' }}>
-        <div className="text-slate-400">Loading sections...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-slate-400">Loading your progress...</div>
       </div>
     );
   }
+
+  // Separate unlocked and locked theories
+  const lockedTheories = theories.filter(
+    (theory) => theory.isLocked && !unlockedTheories.some((u) => u._id === theory._id)
+  );
 
   const handleLoadingComplete = () => {
     setIsLoading(false);
@@ -113,16 +155,22 @@ export default function HomePage() {
   return (
     <>
       <LoadingScreen isVisible={isLoading} onAnimationComplete={handleLoadingComplete} />
+      <UnlockModal
+        isVisible={showUnlockModal}
+        onUnlock={handleUnlockModalClose}
+        theoryTitle={newlyUnlockedTheory?.title}
+        theoryIcon={newlyUnlockedTheory?.icon}
+      />
+
       <div
-        className="h-screen flex flex-col overflow-hidden"
+        className="h-screen flex flex-col overflow-hidden bg-slate-950"
         style={{
-          backgroundColor: '#2d2d2d',
           paddingTop: 'env(safe-area-inset-top)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }}
       >
         {/* Stats Bar - Top */}
-        <div className="flex-shrink-0 backdrop-blur-sm border-b border-slate-800/30 z-40" style={{ backgroundColor: 'rgba(10, 14, 39, 0.95)' }}>
+        <div className="flex-shrink-0 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/30 z-40">
           <div className="flex items-center justify-between px-4 py-3">
             {/* Streak */}
             <StatBadge
@@ -141,110 +189,51 @@ export default function HomePage() {
               value=""
             />
 
-            {/* Gems/Lingots */}
-            <StatBadge
-              icon={<div className="w-5 h-5 bg-cyan-400 rounded-full" style={{ clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }} />}
-              value="905"
-            />
-
             {/* Keys */}
             <StatBadge
               icon={<Key className="w-5 h-5 text-yellow-400" />}
               value={mockUser?.keysEarned?.toString() || "0"}
             />
+
+            {/* XP */}
+            <StatBadge
+              icon={<Zap className="w-5 h-5 text-purple-400 fill-purple-400" />}
+              value={mockUser?.xp?.toString() || "0"}
+            />
           </div>
         </div>
 
-        {/* Main Content - Flex container */}
-        <div className="flex-1 flex flex-col overflow-y-auto px-4">
-          {/* Section Header Card */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex-shrink-0 mt-3 mb-3"
-          >
-            <Card className="bg-gradient-to-r from-purple-600/80 to-purple-700/80 border-purple-500/30 p-4 relative overflow-hidden backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-200 text-xs font-bold tracking-wider mb-1">
-                    SECTION 1, {currentTheory?.title.toUpperCase()}
-                  </p>
-                  <h2 className="text-white text-lg font-bold">
-                    {sections[0]?.title || "Begin Your Journey"}
-                  </h2>
-                </div>
-                <div className="text-purple-200">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <path d="M9 8h6M9 12h6M9 16h3" />
-                  </svg>
-                </div>
+        {/* Main Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-lg mx-auto w-full px-4 pb-24">
+            {/* Unlocked Theories - Stacked Vertically */}
+            {unlockedTheories.map((theory, theoryIndex) => (
+              <TheoryBlock
+                key={theory._id}
+                theory={theory}
+                theoryIndex={theoryIndex}
+                userId={mockUser._id}
+                RiveComponent={RiveComponent}
+                onSectionClick={(sectionId) => {
+                  setIsLoading(true);
+                  setTimeout(() => {
+                    navigate(`/theory/${theory._id}/section/${sectionId}`);
+                  }, 2000);
+                }}
+              />
+            ))}
+
+            {/* Locked Theories Preview */}
+            {lockedTheories.length > 0 && (
+              <div className="mt-8 space-y-4">
+                <h3 className="text-slate-400 text-sm font-semibold uppercase tracking-wider text-center">
+                  Locked Theories
+                </h3>
+                {lockedTheories.map((theory) => (
+                  <LockedTheoryCard key={theory._id} theory={theory} />
+                ))}
               </div>
-            </Card>
-          </motion.div>
-
-          {/* Vertical Path with Rabbit Character - Flex container */}
-          <div className="flex-1 flex flex-col max-w-lg mx-auto w-full pb-4">
-            {/* Rabbit Character at top - offset to left for dynamic look */}
-            <div className="flex-shrink-0 flex justify-center mb-3">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8, x: -30 }}
-                animate={{ opacity: 1, scale: 1, x: -30 }}
-                transition={{ delay: 0.2 }}
-                className="w-32 h-32"
-              >
-                <RiveComponent />
-              </motion.div>
-            </div>
-
-            {/* Rabbit Holes Path - Staggered Layout with dynamic spacing */}
-            <div className="flex-1 relative flex flex-col items-center justify-evenly min-h-0 pb-20">
-              {sections.map((section, index) => {
-                const isCompleted = completedSectionIds?.includes(section._id) || false;
-                const previousSection = index > 0 ? sections[index - 1] : null;
-                const isPreviousCompleted = previousSection
-                  ? completedSectionIds?.includes(previousSection._id) || false
-                  : true;
-                const isLocked = index > 0 && !isPreviousCompleted;
-                const isCurrent = !isCompleted && !isLocked;
-
-                // Calculate horizontal offset for staggered pattern
-                // Pattern: right, left, center, right, left, center...
-                const getOffset = (idx: number) => {
-                  const pattern = idx % 3;
-                  if (pattern === 0) return 50; // Right
-                  if (pattern === 1) return -50; // Left
-                  return 0; // Center
-                };
-
-                const xOffset = getOffset(index);
-
-                return (
-                  <motion.div
-                    key={section._id}
-                    initial={{ opacity: 0, y: 20, x: xOffset }}
-                    animate={{ opacity: 1, y: 0, x: xOffset }}
-                    transition={{ delay: 0.3 + index * 0.1 }}
-                    className="relative flex-shrink-0"
-                  >
-                    <RabbitHoleNode
-                      section={section}
-                      isLocked={isLocked}
-                      isCompleted={isCompleted}
-                      isCurrent={isCurrent}
-                      onClick={() => {
-                        if (!isLocked) {
-                          setIsLoading(true);
-                          setTimeout(() => {
-                            navigate(`/theory/${currentTheory?._id}/section/${section._id}`);
-                          }, 2000);
-                        }
-                      }}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -259,6 +248,166 @@ function StatBadge({ icon, value }: { icon: React.ReactNode; value: string }) {
       {icon}
       {value && <span className="text-sm font-bold text-slate-300">{value}</span>}
     </div>
+  );
+}
+
+// Theory Block Component - Displays one complete theory with all sections
+interface TheoryBlockProps {
+  theory: any;
+  theoryIndex: number;
+  userId: Id<"users">;
+  RiveComponent: React.ComponentType;
+  onSectionClick: (sectionId: Id<"theorySections">) => void;
+}
+
+function TheoryBlock({ theory, theoryIndex, userId, RiveComponent, onSectionClick }: TheoryBlockProps) {
+  // Get sections for this theory
+  const sections = useQuery(api.sections.getSectionsByTheoryId, { theoryId: theory._id });
+
+  // Get completed sections for progress tracking
+  const completedSectionIds = useQuery(api.progress.getCompletedSections, {
+    userId: userId,
+    theoryId: theory._id,
+  });
+
+  // Get user progress for the theory
+  const userProgress = useQuery(api.progress.getUserTheoryProgress, {
+    userId: userId,
+    theoryId: theory._id,
+  });
+
+  if (!sections || !completedSectionIds) {
+    return null;
+  }
+
+  const isTheoryCompleted = userProgress?.isCompleted || false;
+
+  return (
+    <motion.div
+      id={`theory-${theory._id}`}
+      initial={{ opacity: 0, y: 50 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: theoryIndex * 0.1 }}
+      className="mb-12 scroll-mt-24"
+    >
+      {/* Theory Header Card */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: theoryIndex * 0.1 + 0.1 }}
+        className="mb-6"
+      >
+        <Card className={`p-4 relative overflow-hidden backdrop-blur-sm ${
+          isTheoryCompleted
+            ? 'bg-gradient-to-r from-emerald-600/80 to-emerald-700/80 border-emerald-500/30'
+            : 'bg-gradient-to-r from-purple-600/80 to-purple-700/80 border-purple-500/30'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-xs font-bold tracking-wider mb-1 ${
+                isTheoryCompleted ? 'text-emerald-200' : 'text-purple-200'
+              }`}>
+                THEORY {theory.order + 1}
+                {isTheoryCompleted && " • COMPLETED"}
+              </p>
+              <h2 className="text-white text-lg font-bold">
+                {theory.icon} {theory.title}
+              </h2>
+            </div>
+            {isTheoryCompleted && (
+              <Check className="w-8 h-8 text-emerald-200" strokeWidth={3} />
+            )}
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* Rabbit Character */}
+      <div className="flex justify-center mb-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, x: -30 }}
+          animate={{ opacity: 1, scale: 1, x: -30 }}
+          transition={{ delay: theoryIndex * 0.1 + 0.2 }}
+          className="w-32 h-32"
+        >
+          <RiveComponent />
+        </motion.div>
+      </div>
+
+      {/* Section Nodes in Vertical Path */}
+      <div className="relative flex flex-col items-center gap-10 pb-8">
+        {sections.map((section, index) => {
+          const isCompleted = completedSectionIds?.includes(section._id) || false;
+          const previousSection = index > 0 ? sections[index - 1] : null;
+          const isPreviousCompleted = previousSection
+            ? completedSectionIds?.includes(previousSection._id) || false
+            : true;
+          const isLocked = index > 0 && !isPreviousCompleted;
+          const isCurrent = !isCompleted && !isLocked;
+
+          // Calculate horizontal offset for staggered pattern
+          const getOffset = (idx: number) => {
+            const pattern = idx % 3;
+            if (pattern === 0) return 50; // Right
+            if (pattern === 1) return -50; // Left
+            return 0; // Center
+          };
+
+          const xOffset = getOffset(index);
+
+          return (
+            <motion.div
+              key={section._id}
+              initial={{ opacity: 0, y: 20, x: xOffset }}
+              animate={{ opacity: 1, y: 0, x: xOffset }}
+              transition={{ delay: theoryIndex * 0.1 + 0.3 + index * 0.1 }}
+              className="relative"
+            >
+              <RabbitHoleNode
+                section={section}
+                isLocked={isLocked}
+                isCompleted={isCompleted}
+                isCurrent={isCurrent}
+                onClick={() => {
+                  if (!isLocked) {
+                    onSectionClick(section._id);
+                  }
+                }}
+              />
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+// Locked Theory Card Component
+function LockedTheoryCard({ theory }: { theory: any }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="relative"
+    >
+      <Card className="p-4 bg-slate-800/30 border-slate-700/50 relative overflow-hidden">
+        <div className="flex items-center gap-4 opacity-50">
+          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-slate-700/50 flex items-center justify-center">
+            <Lock className="w-6 h-6 text-slate-500" />
+          </div>
+          <div className="flex-1">
+            <p className="text-slate-500 text-xs font-bold tracking-wider mb-1">
+              THEORY {theory.order + 1} • LOCKED
+            </p>
+            <h3 className="text-slate-400 font-semibold">
+              {theory.icon} {theory.title}
+            </h3>
+          </div>
+        </div>
+
+        {/* Lock overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/20 to-slate-800/20 pointer-events-none" />
+      </Card>
+    </motion.div>
   );
 }
 

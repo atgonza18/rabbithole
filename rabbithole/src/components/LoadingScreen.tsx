@@ -36,7 +36,7 @@ export function LoadingScreen({ isVisible, onAnimationComplete }: LoadingScreenP
             duration: 0.15,
             ease: [0.22, 1, 0.36, 1]
           }}
-          className="fixed inset-0 z-50 bg-[#1a1a1a] flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center"
         >
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
