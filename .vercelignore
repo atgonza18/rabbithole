@@ -13,5 +13,4 @@ rabbithole/.env.local
 rabbithole/dist
 rabbithole/dev-dist
 
-# Ignore Convex generated files (will be regenerated)
-rabbithole/convex/_generated
+# Note: Keep convex/_generated files - they're needed for build!
